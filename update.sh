@@ -127,13 +127,65 @@ log_ok "Backup saved to $BACKUP_DIR"
 log_step "Pulling latest code"
 
 cd "$REPO_DIR"
+
+# Save hash of install_binaries.sh before pull to detect changes
+OLD_BINARIES_HASH=""
+if [ -f "$REPO_DIR/install_binaries.sh" ]; then
+    OLD_BINARIES_HASH=$(md5sum "$REPO_DIR/install_binaries.sh" | cut -d' ' -f1)
+fi
+
 git fetch origin "$REPO_BRANCH"
 git reset --hard "origin/$REPO_BRANCH"
+
+NEW_BINARIES_HASH=$(md5sum "$REPO_DIR/install_binaries.sh" | cut -d' ' -f1)
 
 log_ok "Code updated to latest"
 
 # ============================================================================
-# Rebuild binaries (if requested)
+# Check for binary changes
+# ============================================================================
+
+BINARIES_CHANGED=false
+if [ "$OLD_BINARIES_HASH" != "$NEW_BINARIES_HASH" ] && [ -n "$OLD_BINARIES_HASH" ]; then
+    BINARIES_CHANGED=true
+    log_warn "install_binaries.sh has changed since last update"
+
+    # Detect what changed
+    CHANGES=""
+    # Check for PHP version tag changes
+    NEW_PHP_VERSIONS=$(grep -oP 'git checkout php-\K[0-9.]+' "$REPO_DIR/install_binaries.sh" | sort)
+    for ver in $NEW_PHP_VERSIONS; do
+        MAJOR_MINOR=$(echo "$ver" | cut -d. -f1-2)
+        if [ ! -f "/usr/sbin/php-fpm$MAJOR_MINOR" ]; then
+            CHANGES="$CHANGES  - PHP $ver (new, not yet built)\n"
+        else
+            INSTALLED_VER=$("/usr/bin/php$MAJOR_MINOR" -v 2>/dev/null | grep -oP 'PHP \K[0-9.]+' || echo "unknown")
+            if [ "$installed_VER" != "$ver" ]; then
+                CHANGES="$CHANGES  - PHP $MAJOR_MINOR: installed=$INSTALLED_VER, repo=$ver\n"
+            fi
+        fi
+    done
+
+    # Check ImageMagick version
+    NEW_IM_VER=$(grep -oP 'git checkout \K[0-9.]+[-0-9]*' "$REPO_DIR/install_binaries.sh" | head -1)
+    CUR_IM_VER=$(magick --version 2>/dev/null | grep -oP 'ImageMagick \K[0-9.]+-[0-9]+' || echo "not installed")
+    if [ "$NEW_IM_VER" != "$CUR_IM_VER" ]; then
+        CHANGES="$CHANGES  - ImageMagick: installed=$CUR_IM_VER, repo=$NEW_IM_VER\n"
+    fi
+
+    # Check extension versions
+    for ext_line in $(grep -oP '(igbinary|imagick|php-ext-brotli|msgpack-php|apcu).*checkout \K\S+' "$REPO_DIR/install_binaries.sh"); do
+        CHANGES="$CHANGES  - Extension update: $ext_line\n"
+    done
+
+    if [ -n "$CHANGES" ]; then
+        echo -e "${YELLOW}Binary changes detected:${NC}"
+        echo -e "$CHANGES"
+    fi
+fi
+
+# ============================================================================
+# Rebuild binaries (if requested or needed)
 # ============================================================================
 
 if [ "$REBUILD" = true ]; then
@@ -142,13 +194,15 @@ if [ "$REBUILD" = true ]; then
     log_ok "Binaries rebuilt"
 elif [ "$PHP_ONLY" = true ]; then
     log_step "Rebuilding PHP only"
-    # Skip ImageMagick by ensuring it's already installed
     if [ ! -f /usr/local/lib/libMagickCore-7.Q16HDRI.so ]; then
         log_error "ImageMagick not found. Use --rebuild for full build."
         exit 1
     fi
     bash "$REPO_DIR/install_binaries.sh" 2>&1 | tee /root/rebuild.log
     log_ok "PHP rebuilt"
+elif [ "$BINARIES_CHANGED" = true ] && [ "$CODE_ONLY" != true ]; then
+    log_warn "Binary build script changed. Run with --rebuild to apply."
+    log_warn "Continuing with code-only update for now."
 fi
 
 # ============================================================================
