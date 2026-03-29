@@ -505,8 +505,20 @@ log_ok "Filesystem configured"
 
 log_step "Step 12: Install Composer dependencies"
 
+echo "nameserver 1.1.1.1" > /etc/resolv.conf
 cd /var/www
 COMPOSER_ALLOW_SUPERUSER=1 composer install 2>&1 | tail -3
+
+if [ ! -f /var/www/vendor/autoload.php ]; then
+    log_warn "Composer install failed, retrying..."
+    sleep 5
+    COMPOSER_ALLOW_SUPERUSER=1 composer install 2>&1 | tail -3
+fi
+
+if [ ! -f /var/www/vendor/autoload.php ]; then
+    log_error "Composer install failed. Check DNS/network."
+    exit 1
+fi
 
 log_ok "Composer dependencies installed"
 
@@ -544,6 +556,13 @@ php8.2 /var/www/setup.php 2>&1 || true
 
 # Ensure nginx runtime directories exist
 mkdir -p /var/log/nginx /var/run/nginx
+
+# Enable FPM services for all PHP versions
+for ver in 8.2 8.3 8.4 8.5; do
+    systemctl enable "php$ver-fpm@default" 2>/dev/null || true
+    systemctl start "php$ver-fpm@default" 2>/dev/null || true
+done
+systemctl restart nginx 2>/dev/null || true
 
 log_ok "Setup complete"
 
