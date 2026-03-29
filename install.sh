@@ -13,6 +13,7 @@ set -e
 
 REPO_URL="https://github.com/bigbong420/hosting.git"
 REPO_BRANCH="upgrades"
+ORIGINAL_ARGS=("$@")
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -121,7 +122,7 @@ if [ ! -f "$SCRIPT_DIR/install_binaries.sh" ]; then
     fi
     log_ok "Repository cloned to $SCRIPT_DIR"
     # Re-exec from the cloned copy so all paths work
-    exec "$SCRIPT_DIR/install.sh" "$@"
+    exec "$SCRIPT_DIR/install.sh" "${ORIGINAL_ARGS[@]}"
 fi
 
 log_ok "Repository found at $SCRIPT_DIR"
