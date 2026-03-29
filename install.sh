@@ -78,19 +78,35 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-if [ ! -f /etc/debian_version ]; then
-    log_error "This script requires Debian"
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+fi
+
+if [ -f /etc/debian_version ]; then
+    DEBIAN_FULL=$(cat /etc/debian_version)
+    DEBIAN_VERSION=$(echo "$DEBIAN_FULL" | cut -d. -f1)
+    # Ubuntu 24.04 reports "trixie/sid", treat as compatible
+    if echo "$DEBIAN_FULL" | grep -q "trixie"; then
+        DEBIAN_VERSION=13
+    fi
+    if [ "$DEBIAN_VERSION" -ge 13 ] 2>/dev/null; then
+        : # ok
+    else
+        log_error "Debian 13+ or Ubuntu 24.04+ required. You have: $DEBIAN_FULL"
+        exit 1
+    fi
+elif [ "$ID" = "ubuntu" ]; then
+    UBUNTU_MAJOR=$(echo "$VERSION_ID" | cut -d. -f1)
+    if [ "$UBUNTU_MAJOR" -lt 24 ]; then
+        log_error "Ubuntu 24.04+ required. You have: $VERSION_ID"
+        exit 1
+    fi
+else
+    log_error "This script requires Debian 13+ or Ubuntu 24.04+"
     exit 1
 fi
 
-DEBIAN_FULL=$(cat /etc/debian_version)
-DEBIAN_VERSION=$(echo "$DEBIAN_FULL" | cut -d. -f1)
-if [ "$DEBIAN_VERSION" -lt 13 ]; then
-    log_error "Debian 13 (Trixie) or newer is required. You have: $DEBIAN_FULL"
-    exit 1
-fi
-
-log_ok "Running as root on Debian $DEBIAN_FULL"
+log_ok "Running as root on ${PRETTY_NAME:-Debian $DEBIAN_FULL}"
 
 # Auto-clone repo if not running from within it
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -226,18 +242,22 @@ log_step "Step 2: Add repositories"
 apt update -qq
 apt install -y -qq git apt-transport-tor curl lsb-release
 
+CODENAME=$(lsb_release -cs)
+IS_UBUNTU=false
+[ "${ID:-}" = "ubuntu" ] && IS_UBUNTU=true
+
 curl -sSL https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc \
     > /etc/apt/trusted.gpg.d/torproject.asc
-curl -sSL https://packages.sury.org/nginx/apt.gpg \
-    > /etc/apt/trusted.gpg.d/sury.gpg
-
-CODENAME=$(lsb_release -cs)
-
-# Only add if not already present
 grep -q "torproject.org" /etc/apt/sources.list || \
     echo "deb tor://apow7mjfryruh65chtdydfmqfpj5btws7nbocgtaovhvezgccyjazpqd.onion/torproject.org/ $CODENAME main" >> /etc/apt/sources.list
-grep -q "sury.org" /etc/apt/sources.list || \
-    echo "deb https://packages.sury.org/nginx/ $CODENAME main" >> /etc/apt/sources.list
+
+# Sury nginx repo only needed on Debian (Ubuntu has nginx + brotli natively)
+if [ "$IS_UBUNTU" = false ]; then
+    curl -sSL https://packages.sury.org/nginx/apt.gpg \
+        > /etc/apt/trusted.gpg.d/sury.gpg
+    grep -q "sury.org" /etc/apt/sources.list || \
+        echo "deb https://packages.sury.org/nginx/ $CODENAME main" >> /etc/apt/sources.list
+fi
 
 apt update -qq
 DEBIAN_FRONTEND=noninteractive apt upgrade -y
