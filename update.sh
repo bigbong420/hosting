@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# ============================================================================
 # Tor Hosting - Update Script
 # https://github.com/bigbong420/hosting
 #
@@ -13,7 +12,6 @@ set -e
 #   ./update.sh --rebuild        # Also rebuild PHP/ImageMagick
 #   ./update.sh --php-only       # Only rebuild PHP (skip ImageMagick)
 #   ./update.sh --code-only      # Only update PHP code, no config changes
-# ============================================================================
 
 REPO_URL="https://github.com/bigbong420/hosting.git"
 REPO_BRANCH="upgrades"
@@ -64,11 +62,6 @@ while [[ $# -gt 0 ]]; do
         *) log_error "Unknown option: $1"; usage ;;
     esac
 done
-
-# ============================================================================
-# Pre-flight
-# ============================================================================
-
 log_step "Pre-flight checks"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -76,7 +69,6 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# Find the repo
 if [ -d "/root/hosting" ]; then
     REPO_DIR="/root/hosting"
 elif [ -d "$(dirname "$0")/.git" ]; then
@@ -87,17 +79,10 @@ else
 fi
 
 log_ok "Repository at $REPO_DIR"
-
-# ============================================================================
-# Backup current config
-# ============================================================================
-
 log_step "Backing up current configuration"
 
 BACKUP_DIR="/root/hosting-backup-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
-
-# Save current secrets from common.php
 if [ -f /var/www/common.php ]; then
     cp /var/www/common.php "$BACKUP_DIR/common.php.bak"
     DBHOST=$(php8.2 -r "require('/var/www/common.php'); echo DBHOST;" 2>/dev/null || echo "127.0.0.1")
@@ -119,16 +104,9 @@ if [ -z "$DBPASS" ] || [ -z "$ADDRESS" ]; then
 fi
 
 log_ok "Backup saved to $BACKUP_DIR"
-
-# ============================================================================
-# Pull latest code
-# ============================================================================
-
 log_step "Pulling latest code"
 
 cd "$REPO_DIR"
-
-# Save hash of install_binaries.sh before pull to detect changes
 OLD_BINARIES_HASH=""
 if [ -f "$REPO_DIR/install_binaries.sh" ]; then
     OLD_BINARIES_HASH=$(md5sum "$REPO_DIR/install_binaries.sh" | cut -d' ' -f1)
@@ -140,11 +118,6 @@ git reset --hard "origin/$REPO_BRANCH"
 NEW_BINARIES_HASH=$(md5sum "$REPO_DIR/install_binaries.sh" | cut -d' ' -f1)
 
 log_ok "Code updated to latest"
-
-# ============================================================================
-# Check for binary changes
-# ============================================================================
-
 BINARIES_CHANGED=false
 if [ "$OLD_BINARIES_HASH" != "$NEW_BINARIES_HASH" ] && [ -n "$OLD_BINARIES_HASH" ]; then
     BINARIES_CHANGED=true
@@ -184,10 +157,6 @@ if [ "$OLD_BINARIES_HASH" != "$NEW_BINARIES_HASH" ] && [ -n "$OLD_BINARIES_HASH"
     fi
 fi
 
-# ============================================================================
-# Rebuild binaries (if requested or needed)
-# ============================================================================
-
 if [ "$REBUILD" = true ]; then
     log_step "Rebuilding all binaries (PHP + ImageMagick)"
     bash "$REPO_DIR/install_binaries.sh" 2>&1 | tee /root/rebuild.log
@@ -205,13 +174,7 @@ elif [ "$BINARIES_CHANGED" = true ] && [ "$CODE_ONLY" != true ]; then
     log_warn "Continuing with code-only update for now."
 fi
 
-# ============================================================================
-# Update code files
-# ============================================================================
-
 log_step "Updating code files"
-
-# Copy updated PHP files
 cp -a "$REPO_DIR/var/www/common.php" /var/www/common.php
 cp -a "$REPO_DIR/var/www/html/home.php" /var/www/html/home.php
 cp -a "$REPO_DIR/var/www/html/login.php" /var/www/html/login.php
@@ -233,25 +196,15 @@ cp -a "$REPO_DIR/var/www/find_old.php" /var/www/find_old.php 2>/dev/null || true
 
 log_ok "Code files updated"
 
-# ============================================================================
-# Restore configuration
-# ============================================================================
-
 log_step "Restoring configuration"
 
 DEFAULT_ONION="dhosting4xxoydyaivckq7tsmtgi4wfs3flpeyitekkmqwu4v4r46syd.onion"
-
-# Restore DB settings
 sed -i "s|const DBHOST='127.0.0.1'|const DBHOST='$DBHOST'|" /var/www/common.php
 sed -i "s|const DBPASS='MY_PASSWORD'|const DBPASS='$DBPASS'|" /var/www/common.php
 sed -i "s|const ADMIN_PASSWORD='MY_PASSWORD'|const ADMIN_PASSWORD='$ADMIN_PASSWORD'|" /var/www/common.php
 sed -i "s|const ONION_KEY_ENCRYPTION_KEY=''|const ONION_KEY_ENCRYPTION_KEY='$ONION_KEY_ENCRYPTION_KEY'|" /var/www/common.php
-
-# Restore onion address
 sed -i "s|$DEFAULT_ONION|$ADDRESS|g" /var/www/common.php
 sed -i "s|$DEFAULT_ONION|$ADDRESS|g" /var/www/skel/www/index.hosting.html 2>/dev/null || true
-
-# Fix permissions
 chown root:www-data /var/www/common.php
 chmod 640 /var/www/common.php
 
@@ -263,25 +216,13 @@ if [ "$CODE_ONLY" = true ]; then
     exit 0
 fi
 
-# ============================================================================
-# Update configs and restart services
-# ============================================================================
-
 log_step "Updating services"
-
-# Run setup.php to update database schema and configs
 php8.2 /var/www/setup.php 2>&1 || true
-
-# Ensure runtime dirs exist
 mkdir -p /var/log/nginx /var/run/nginx
-
-# Restart FPM and nginx
 for ver in 8.2 8.3 8.4 8.5; do
     systemctl restart "php$ver-fpm@default" 2>/dev/null || true
 done
 systemctl restart nginx 2>/dev/null || true
-
-# Verify
 FAILS=0
 for svc in nginx php8.2-fpm@default php8.3-fpm@default php8.4-fpm@default php8.5-fpm@default; do
     if ! systemctl is-active --quiet "$svc"; then
@@ -296,17 +237,11 @@ else
     log_warn "$FAILS service(s) need attention"
 fi
 
-# ============================================================================
-# Summary
-# ============================================================================
-
 log_step "Update Complete"
 
 echo -e "${BOLD}Onion:${NC}   $ADDRESS"
 echo -e "${BOLD}Backup:${NC} $BACKUP_DIR"
 echo ""
-
-# Quick smoke test
 TITLE=$(curl -s --max-time 30 --socks5-hostname 127.0.0.1:9050 "http://$ADDRESS/" 2>/dev/null | grep -o "<title>[^<]*</title>")
 if [ -n "$TITLE" ]; then
     log_ok "Site responding: $TITLE"

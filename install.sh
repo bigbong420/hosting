@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# ============================================================================
 # Tor Hosting - Automated Installer for Debian 13 (Trixie)
 # https://github.com/bigbong420/hosting
 #
@@ -9,7 +8,6 @@ set -e
 #   curl -sSL https://raw.githubusercontent.com/bigbong420/hosting/upgrades/install.sh | bash
 # Or with options:
 #   curl -sSL https://raw.githubusercontent.com/bigbong420/hosting/upgrades/install.sh | bash -s -- --non-interactive
-# ============================================================================
 
 REPO_URL="https://github.com/bigbong420/hosting.git"
 REPO_BRANCH="upgrades"
@@ -31,11 +29,6 @@ DB_PMA_PASS="${HOSTING_PMA_PASS:-}"
 ADMIN_PASS="${HOSTING_ADMIN_PASS:-}"
 BLOWFISH_SECRET=""
 ONION_ENC_KEY=""
-
-# ============================================================================
-# Functions
-# ============================================================================
-
 log_info()  { echo -e "${CYAN}[INFO]${NC} $1"; }
 log_ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -65,11 +58,6 @@ Examples:
 EOF
     exit 0
 }
-
-# ============================================================================
-# Parse arguments
-# ============================================================================
-
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --non-interactive) NONINTERACTIVE=true; shift ;;
@@ -83,11 +71,6 @@ while [[ $# -gt 0 ]]; do
         *) log_error "Unknown option: $1"; usage ;;
     esac
 done
-
-# ============================================================================
-# Pre-flight checks
-# ============================================================================
-
 log_step "Pre-flight checks"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -135,9 +118,7 @@ fi
 
 log_ok "Repository found at $SCRIPT_DIR"
 
-# ============================================================================
 # Interactive prompts (skipped with --non-interactive)
-# ============================================================================
 
 if [ "$NONINTERACTIVE" = false ]; then
     log_step "Configuration"
@@ -191,8 +172,6 @@ if [ "$NONINTERACTIVE" = false ]; then
         fi
     fi
 fi
-
-# Generate any passwords that weren't provided
 [ -z "$DB_HOSTING_PASS" ] && DB_HOSTING_PASS=$(gen_pass)
 [ -z "$DB_PMA_PASS" ]     && DB_PMA_PASS=$(gen_pass)
 [ -z "$ADMIN_PASS" ]      && ADMIN_PASS=$(gen_pass)
@@ -213,8 +192,6 @@ if [ "$NONINTERACTIVE" = false ]; then
         exit 0
     fi
 fi
-
-# Save credentials to file
 CREDS_FILE="/root/hosting-credentials.txt"
 cat > "$CREDS_FILE" <<EOF
 === Daniel's Hosting Credentials ===
@@ -233,11 +210,6 @@ Onion Key Encryption Key: $ONION_ENC_KEY
 EOF
 chmod 600 "$CREDS_FILE"
 log_ok "Credentials saved to $CREDS_FILE"
-
-# ============================================================================
-# Step 1: Purge conflicting packages and fix DNS
-# ============================================================================
-
 log_step "Step 1: Purge conflicting packages"
 
 DEBIAN_FRONTEND=noninteractive apt purge -y apache2* dnsmasq* eatmydata exim4* \
@@ -249,11 +221,6 @@ systemctl stop systemd-resolved.service 2>/dev/null || true
 
 echo "nameserver 1.1.1.1" > /etc/resolv.conf
 log_ok "DNS set to 1.1.1.1"
-
-# ============================================================================
-# Step 2: Add repositories
-# ============================================================================
-
 log_step "Step 2: Add repositories"
 
 apt update -qq
@@ -275,11 +242,6 @@ grep -q "sury.org" /etc/apt/sources.list || \
 apt update -qq
 DEBIAN_FRONTEND=noninteractive apt upgrade -y
 log_ok "Repositories configured"
-
-# ============================================================================
-# Step 3: Build binaries (PHP, ImageMagick, etc)
-# ============================================================================
-
 if [ "$SKIP_BINARIES" = true ]; then
     log_step "Step 3: Skipping binary compilation (--skip-binaries)"
 else
@@ -295,11 +257,6 @@ else
     fi
     log_ok "All binaries compiled and installed"
 fi
-
-# ============================================================================
-# Step 4: Vanity onion generation (if requested)
-# ============================================================================
-
 if [ -n "$VANITY_PREFIX" ]; then
     log_step "Step 4: Generating vanity .onion address (prefix: $VANITY_PREFIX)"
 
@@ -334,22 +291,12 @@ if [ -n "$VANITY_PREFIX" ]; then
 else
     log_step "Step 4: Skipping vanity generation (random onion)"
 fi
-
-# ============================================================================
-# Step 5: Copy site and config files
-# ============================================================================
-
 log_step "Step 5: Copy site and config files"
 
 cp -a "$SCRIPT_DIR/var/www/"* /var/www/
 cp -a "$SCRIPT_DIR/etc/"* /etc/
 
 log_ok "Files copied"
-
-# ============================================================================
-# Step 6: Create systemd service files for all PHP versions
-# ============================================================================
-
 log_step "Step 6: Create PHP-FPM systemd service files"
 
 # 8.2 service files should exist from install_binaries.sh packages
@@ -363,11 +310,6 @@ done
 
 systemctl daemon-reload
 log_ok "PHP-FPM service files created for 8.2, 8.3, 8.4, 8.5"
-
-# ============================================================================
-# Step 7: Start Tor and get .onion address
-# ============================================================================
-
 log_step "Step 7: Configure Tor"
 
 systemctl restart bind9.service
@@ -387,17 +329,10 @@ if [ -z "$ONION_ADDR" ]; then
 fi
 
 log_ok "Onion address: ${GREEN}${ONION_ADDR}${NC}"
-
-# ============================================================================
-# Step 8: Configure common.php
-# ============================================================================
-
 log_step "Step 8: Configure hosting"
 
 ADMIN_HASH=$(php8.2 -r "echo password_hash('$ADMIN_PASS', PASSWORD_DEFAULT);" 2>/dev/null || \
              php8.5 -r "echo password_hash('$ADMIN_PASS', PASSWORD_DEFAULT);")
-
-# Replace passwords and settings
 sed -i "s|const DBPASS='MY_PASSWORD'|const DBPASS='$DB_HOSTING_PASS'|" /var/www/common.php
 sed -i "s|const ADMIN_PASSWORD='MY_PASSWORD'|const ADMIN_PASSWORD='$ADMIN_HASH'|" /var/www/common.php
 sed -i "s|const ONION_KEY_ENCRYPTION_KEY=''|const ONION_KEY_ENCRYPTION_KEY='$ONION_ENC_KEY'|" /var/www/common.php
@@ -415,11 +350,6 @@ sed -i "s/$DEFAULT_ONION/$ONION_ADDR/g" \
     /var/www/html/squirrelmail/config/config.php
 
 log_ok "Configuration applied"
-
-# ============================================================================
-# Step 9: Configure Dovecot for Debian 13
-# ============================================================================
-
 log_step "Step 9: Configure Dovecot"
 
 # Dovecot 2.4 in trixie has different config syntax
@@ -459,22 +389,12 @@ fi
 
 systemctl restart dovecot
 log_ok "Dovecot configured"
-
-# ============================================================================
-# Step 10: Postfix maps
-# ============================================================================
-
 log_step "Step 10: Configure Postfix"
 
 postalias /etc/aliases
 postmap /etc/postfix/canonical /etc/postfix/sender_login_maps /etc/postfix/transport
 
 log_ok "Postfix maps created"
-
-# ============================================================================
-# Step 11: Configure fstab (tmpfs, hidepid, quota)
-# ============================================================================
-
 log_step "Step 11: Configure fstab and quota"
 
 grep -q "tmpfs /tmp" /etc/fstab || \
@@ -498,11 +418,6 @@ quotacheck -cMu "$QUOTA_TARGET" 2>/dev/null || true
 quotaon "$QUOTA_TARGET" 2>/dev/null || true
 
 log_ok "Filesystem configured"
-
-# ============================================================================
-# Step 12: Composer install (sodium_compat)
-# ============================================================================
-
 log_step "Step 12: Install Composer dependencies"
 
 echo "nameserver 1.1.1.1" > /etc/resolv.conf
@@ -521,11 +436,6 @@ if [ ! -f /var/www/vendor/autoload.php ]; then
 fi
 
 log_ok "Composer dependencies installed"
-
-# ============================================================================
-# Step 13: MySQL setup
-# ============================================================================
-
 log_step "Step 13: Configure MySQL"
 
 mysql -e "CREATE USER IF NOT EXISTS 'phpmyadmin'@'%' IDENTIFIED BY '$DB_PMA_PASS';
@@ -538,26 +448,15 @@ mysql phpmyadmin < /var/www/html/phpmyadmin/sql/create_tables.sql 2>/dev/null ||
 mysql -e "CREATE USER IF NOT EXISTS 'hosting'@'%' IDENTIFIED BY '$DB_HOSTING_PASS';
 GRANT ALL PRIVILEGES ON *.* TO 'hosting'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;"
-
-# Configure phpMyAdmin
 sed -i "s|\$cfg\['blowfish_secret'\] = '.*'|\$cfg['blowfish_secret'] = '$BLOWFISH_SECRET'|" \
     /var/www/html/phpmyadmin/config.inc.php
 sed -i "s|YOUR_PASSWORD|$DB_PMA_PASS|g" /var/www/html/phpmyadmin/config.inc.php 2>/dev/null || true
 
 log_ok "MySQL users and databases created"
-
-# ============================================================================
-# Step 14: Run setup.php
-# ============================================================================
-
 log_step "Step 14: Run setup.php"
 
 php8.2 /var/www/setup.php 2>&1 || true
-
-# Ensure nginx runtime directories exist
 mkdir -p /var/log/nginx /var/run/nginx
-
-# Enable FPM services for all PHP versions
 for ver in 8.2 8.3 8.4 8.5; do
     systemctl enable "php$ver-fpm@default" 2>/dev/null || true
     systemctl start "php$ver-fpm@default" 2>/dev/null || true
@@ -565,11 +464,6 @@ done
 systemctl restart nginx 2>/dev/null || true
 
 log_ok "Setup complete"
-
-# ============================================================================
-# Step 15: Vanity onion import (if generated)
-# ============================================================================
-
 if [ -n "$VANITY_PREFIX" ] && [ -n "$VANITY_SECRET" ]; then
     log_step "Step 15: Import vanity onion address"
 
@@ -611,26 +505,14 @@ if [ -n "$VANITY_PREFIX" ] && [ -n "$VANITY_SECRET" ]; then
 else
     log_step "Step 15: Skipping vanity import"
 fi
-
-# ============================================================================
-# Step 16: Enable timers and disable sftp subsystem
-# ============================================================================
-
 log_step "Step 16: Final configuration"
 
 systemctl enable hosting-del.timer hosting.timer
 sed -i 's/^Subsystem/#Subsystem/' /etc/ssh/sshd_config
-
-# Restart all services
 systemctl restart nginx postfix dovecot
 systemctl restart tor@default.service
 
 log_ok "Timers enabled, services configured"
-
-# ============================================================================
-# Summary
-# ============================================================================
-
 log_step "Installation Complete"
 
 echo -e "${BOLD}Onion Address:${NC}  ${GREEN}http://${ONION_ADDR}${NC}"
