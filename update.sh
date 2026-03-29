@@ -85,13 +85,14 @@ BACKUP_DIR="/root/hosting-backup-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 if [ -f /var/www/common.php ]; then
     cp /var/www/common.php "$BACKUP_DIR/common.php.bak"
-    DBHOST=$(php8.2 -r "require('/var/www/common.php'); echo DBHOST;" 2>/dev/null || echo "127.0.0.1")
-    DBUSER=$(php8.2 -r "require('/var/www/common.php'); echo DBUSER;" 2>/dev/null || echo "hosting")
-    DBPASS=$(php8.2 -r "require('/var/www/common.php'); echo DBPASS;" 2>/dev/null || echo "")
-    DBNAME=$(php8.2 -r "require('/var/www/common.php'); echo DBNAME;" 2>/dev/null || echo "hosting")
-    ADMIN_PASSWORD=$(php8.2 -r "require('/var/www/common.php'); echo ADMIN_PASSWORD;" 2>/dev/null || echo "")
-    ADDRESS=$(php8.2 -r "require('/var/www/common.php'); echo ADDRESS;" 2>/dev/null || echo "")
-    ONION_KEY_ENCRYPTION_KEY=$(php8.2 -r "require('/var/www/common.php'); echo ONION_KEY_ENCRYPTION_KEY;" 2>/dev/null || echo "")
+    eval $(php8.2 -r "
+        require('/var/www/common.php');
+        echo 'DBHOST=' . escapeshellarg(DBHOST) . '\n';
+        echo 'DBPASS=' . escapeshellarg(DBPASS) . '\n';
+        echo 'ADMIN_PASSWORD=' . escapeshellarg(ADMIN_PASSWORD) . '\n';
+        echo 'ADDRESS=' . escapeshellarg(ADDRESS) . '\n';
+        echo 'ONION_KEY_ENCRYPTION_KEY=' . escapeshellarg(ONION_KEY_ENCRYPTION_KEY) . '\n';
+    " 2>/dev/null)
     log_ok "Secrets extracted from current config"
 else
     log_error "No /var/www/common.php found. Run install.sh first."
@@ -133,7 +134,7 @@ if [ "$OLD_BINARIES_HASH" != "$NEW_BINARIES_HASH" ] && [ -n "$OLD_BINARIES_HASH"
             CHANGES="$CHANGES  - PHP $ver (new, not yet built)\n"
         else
             INSTALLED_VER=$("/usr/bin/php$MAJOR_MINOR" -v 2>/dev/null | grep -oP 'PHP \K[0-9.]+' || echo "unknown")
-            if [ "$installed_VER" != "$ver" ]; then
+            if [ "$INSTALLED_VER" != "$ver" ]; then
                 CHANGES="$CHANGES  - PHP $MAJOR_MINOR: installed=$INSTALLED_VER, repo=$ver\n"
             fi
         fi

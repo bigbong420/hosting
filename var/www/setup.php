@@ -381,8 +381,8 @@ foreach(SERVICE_INSTANCES as $instance){
 		rewrite_torrc($instance);
 		exec("systemctl enable ".escapeshellarg("tor@$instance"));
 		exec("systemctl start ".escapeshellarg("tor@$instance"));
+		rewrite_php_config($instance);
 		foreach(PHP_VERSIONS as $version){
-			rewrite_php_config($instance);
 			exec("systemctl enable ".escapeshellarg("php$version-fpm@$instance"));
 			exec("systemctl start ".escapeshellarg("php$version-fpm@$instance"));
 		}

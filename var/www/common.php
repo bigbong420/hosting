@@ -639,8 +639,8 @@ function rewrite_nginx_config(): void
 function rewrite_php_config(string $key): void
 {
 	$db = get_db_instance();
+	$all_versions = $all_versions;
 	$stmt=$db->prepare("SELECT system_account FROM users WHERE instance = ? AND php=? AND todelete!=1 AND id NOT IN (SELECT user_id FROM new_account);");
-	// collect user sockets that need to move between PHP versions
 	$all_accounts = [];
 	$tmp_stmt=$db->prepare("SELECT system_account FROM users WHERE instance = ? AND todelete!=1 AND id NOT IN (SELECT user_id FROM new_account);");
 	$tmp_stmt->execute([$key]);
@@ -650,7 +650,7 @@ function rewrite_php_config(string $key): void
 			$all_accounts[] = $sa;
 		}
 	}
-	foreach(array_replace(PHP_VERSIONS, DISABLED_PHP_VERSIONS) as $php_key => $version){
+	foreach($all_versions as $php_key => $version){
 		$stmt->execute([$key, $php_key]);
 			$php = "[www]
 user = www-data
@@ -693,14 +693,14 @@ env[HOME]=/
 		file_put_contents("/etc/php/$version/fpm/pool.d/$key/www.conf", $php);
 	}
 	// restart FPM: first stop all to release sockets, remove stale sockets, then start all
-	foreach(array_replace(PHP_VERSIONS, DISABLED_PHP_VERSIONS) as $php_key => $version){
+	foreach($all_versions as $php_key => $version){
 		exec('systemctl stop '.escapeshellarg("php$version-fpm@$key").' 2>/dev/null');
 	}
 	foreach($all_accounts as $sa){
 		@unlink("/run/php/$sa");
 	}
 	usleep(200000); // 200ms for sockets to fully release
-	foreach(array_replace(PHP_VERSIONS, DISABLED_PHP_VERSIONS) as $php_key => $version){
+	foreach($all_versions as $php_key => $version){
 		exec('systemctl start '.escapeshellarg("php$version-fpm@$key"));
 	}
 }

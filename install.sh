@@ -83,14 +83,14 @@ if [ ! -f /etc/debian_version ]; then
     exit 1
 fi
 
-DEBIAN_VERSION=$(cat /etc/debian_version | cut -d. -f1)
+DEBIAN_FULL=$(cat /etc/debian_version)
+DEBIAN_VERSION=$(echo "$DEBIAN_FULL" | cut -d. -f1)
 if [ "$DEBIAN_VERSION" -lt 13 ]; then
-    log_error "Debian 13 (Trixie) or newer is required. You have: $(cat /etc/debian_version)"
-    log_error "Upgrade to Debian 13 first."
+    log_error "Debian 13 (Trixie) or newer is required. You have: $DEBIAN_FULL"
     exit 1
 fi
 
-log_ok "Running as root on Debian $(cat /etc/debian_version)"
+log_ok "Running as root on Debian $DEBIAN_FULL"
 
 # Auto-clone repo if not running from within it
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -339,15 +339,8 @@ sed -i "s|const ONION_KEY_ENCRYPTION_KEY=''|const ONION_KEY_ENCRYPTION_KEY='$ONI
 
 # Replace default onion domain everywhere
 DEFAULT_ONION="dhosting4xxoydyaivckq7tsmtgi4wfs3flpeyitekkmqwu4v4r46syd.onion"
-sed -i "s/$DEFAULT_ONION/$ONION_ADDR/g" \
-    /etc/postfix/sql/alias.cf \
-    /etc/postfix/sender_login_maps \
-    /etc/postfix/main.cf \
-    /var/www/skel/www/index.hosting.html \
-    /var/www/common.php \
-    /etc/postfix/canonical \
-    /etc/postfix-clearnet/canonical \
-    /var/www/html/squirrelmail/config/config.php
+ONION_CONFIG_FILES="/etc/postfix/sql/alias.cf /etc/postfix/sender_login_maps /etc/postfix/main.cf /var/www/skel/www/index.hosting.html /var/www/common.php /etc/postfix/canonical /etc/postfix-clearnet/canonical /var/www/html/squirrelmail/config/config.php"
+sed -i "s/$DEFAULT_ONION/$ONION_ADDR/g" $ONION_CONFIG_FILES
 
 log_ok "Configuration applied"
 log_step "Step 9: Configure Dovecot"
@@ -441,13 +434,11 @@ log_step "Step 13: Configure MySQL"
 mysql -e "CREATE USER IF NOT EXISTS 'phpmyadmin'@'%' IDENTIFIED BY '$DB_PMA_PASS';
 CREATE DATABASE IF NOT EXISTS phpmyadmin;
 GRANT ALL PRIVILEGES ON phpmyadmin.* TO 'phpmyadmin'@'%';
+CREATE USER IF NOT EXISTS 'hosting'@'%' IDENTIFIED BY '$DB_HOSTING_PASS';
+GRANT ALL PRIVILEGES ON *.* TO 'hosting'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;"
 
 mysql phpmyadmin < /var/www/html/phpmyadmin/sql/create_tables.sql 2>/dev/null || true
-
-mysql -e "CREATE USER IF NOT EXISTS 'hosting'@'%' IDENTIFIED BY '$DB_HOSTING_PASS';
-GRANT ALL PRIVILEGES ON *.* TO 'hosting'@'%' WITH GRANT OPTION;
-FLUSH PRIVILEGES;"
 sed -i "s|\$cfg\['blowfish_secret'\] = '.*'|\$cfg['blowfish_secret'] = '$BLOWFISH_SECRET'|" \
     /var/www/html/phpmyadmin/config.inc.php
 sed -i "s|YOUR_PASSWORD|$DB_PMA_PASS|g" /var/www/html/phpmyadmin/config.inc.php 2>/dev/null || true
@@ -478,15 +469,7 @@ if [ -n "$VANITY_PREFIX" ] && [ -n "$VANITY_SECRET" ]; then
 
     # Update all config files with the vanity address
     NEW_ONION=$(cat /var/lib/tor/hidden_service/hostname | tr -d '[:space:]')
-    sed -i "s|$ONION_ADDR|$NEW_ONION|g" \
-        /etc/postfix/sql/alias.cf \
-        /etc/postfix/sender_login_maps \
-        /etc/postfix/main.cf \
-        /var/www/skel/www/index.hosting.html \
-        /var/www/common.php \
-        /etc/postfix/canonical \
-        /etc/postfix-clearnet/canonical \
-        /var/www/html/squirrelmail/config/config.php
+    sed -i "s|$ONION_ADDR|$NEW_ONION|g" $ONION_CONFIG_FILES
 
     # Rebuild postfix maps with new address
     postmap /etc/postfix/canonical /etc/postfix/sender_login_maps /etc/postfix/transport

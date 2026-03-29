@@ -200,9 +200,7 @@ if(!empty($msg)){
 echo '<p>'.sprintf(_('Enter system account password to check your %s mail:'), $user['system_account'].'@' . ADDRESS).'</td><td><form action="squirrelmail/src/redirect.php" method="post" target="_blank"><input type="hidden" name="login_username" value="'.$user['system_account'].'"><input type="password" name="secretkey"><button type="submit">'._('Login to webmail').'</button></form></p>';
 echo '<h3>'._('Onion domains').'</h3>';
 echo '<table border="1">';
-//echo '<tr><th>'._('Onion').'</th><th>'._('Private key').'</th><th>'._('Enabled').'</th><th>'._('SMTP enabled').'</th><th>'._('Nr. of intros').'</th><th>'._('Max streams per rend circuit').'</th><th>'._('Action').'</th></tr>';
 echo '<tr><th>'._('Onion').'</th><th>'._('Private key').'</th><th>'._('Enabled').'</th><th>'._('SMTP enabled').'</th><th>'._('Nr. of intros').'</th><th>'._('Max streams per rend circuit').'</th><th>'._('Description').'</th><th>'._('Action').'</th></tr>';
-//$stmt=$db->prepare('SELECT onion, private_key, enabled, enable_smtp, num_intros, max_streams FROM onions WHERE user_id = ?;');
 $stmt=$db->prepare('SELECT onion, private_key, enabled, enable_smtp, num_intros, max_streams, description FROM onions WHERE user_id = ?;');
 $stmt->execute([$user['id']]);
 $count_onions = 0;
@@ -222,7 +220,6 @@ while($onion=$stmt->fetch(PDO::FETCH_ASSOC)){
 	echo '>'._('Enabled').'</label></td>';
 	echo '<td><input type="number" name="num_intros" min="3" max="20" value="'.$onion['num_intros'].'"></td>';
 	echo '<td><input type="number" name="max_streams" min="0" max="65535" value="'.$onion['max_streams'].'"></td>';
-	//added description
 	echo '<td><input type="text" name="description" maxlength="50" value="'.htmlspecialchars($onion['description'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"></td>';
 	if(in_array($onion['enabled'], [0, 1])){
 		echo '<td><button type="submit" name="action" value="edit_onion">'._('Save').'</button>';
@@ -234,7 +231,6 @@ while($onion=$stmt->fetch(PDO::FETCH_ASSOC)){
 }
 if($count_onions<MAX_NUM_USER_ONIONS){
 	echo "<form action=\"home.php\" method=\"post\"><input type=\"hidden\" name=\"csrf_token\" value=\"$_SESSION[csrf_token]\">";
-	//echo '<tr><td colspan="6">'._('Add additional hidden service:').'<br>';
 	echo '<tr><td colspan="7">'._('Add additional hidden service:').'<br>';
 	echo '<label><input type="radio" name="onion_type" value="3"';
 	echo (!isset($_POST['onion_type']) || $_POST['onion_type']==3) ? ' checked' : '';
