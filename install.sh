@@ -21,13 +21,14 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
-NONINTERACTIVE=false
-SKIP_BINARIES=false
-VANITY_PREFIX=""
-VANITY_THREADS=""
-DB_HOSTING_PASS=""
-DB_PMA_PASS=""
-ADMIN_PASS=""
+# Restore state from env vars (set when re-exec'd after auto-clone)
+NONINTERACTIVE=${HOSTING_NONINTERACTIVE:-false}
+SKIP_BINARIES=${HOSTING_SKIP_BINARIES:-false}
+VANITY_PREFIX="${HOSTING_VANITY_PREFIX:-}"
+VANITY_THREADS="${HOSTING_VANITY_THREADS:-}"
+DB_HOSTING_PASS="${HOSTING_DB_PASS:-}"
+DB_PMA_PASS="${HOSTING_PMA_PASS:-}"
+ADMIN_PASS="${HOSTING_ADMIN_PASS:-}"
 BLOWFISH_SECRET=""
 ONION_ENC_KEY=""
 
@@ -121,7 +122,14 @@ if [ ! -f "$SCRIPT_DIR/install_binaries.sh" ]; then
         git clone -b "$REPO_BRANCH" "$REPO_URL" "$SCRIPT_DIR"
     fi
     log_ok "Repository cloned to $SCRIPT_DIR"
-    # Re-exec from the cloned copy so all paths work
+    # Re-exec from the cloned copy, passing state via env vars
+    export HOSTING_NONINTERACTIVE="$NONINTERACTIVE"
+    export HOSTING_SKIP_BINARIES="$SKIP_BINARIES"
+    export HOSTING_VANITY_PREFIX="$VANITY_PREFIX"
+    export HOSTING_VANITY_THREADS="$VANITY_THREADS"
+    export HOSTING_DB_PASS="$DB_HOSTING_PASS"
+    export HOSTING_PMA_PASS="$DB_PMA_PASS"
+    export HOSTING_ADMIN_PASS="$ADMIN_PASS"
     exec "$SCRIPT_DIR/install.sh" "${ORIGINAL_ARGS[@]}"
 fi
 
