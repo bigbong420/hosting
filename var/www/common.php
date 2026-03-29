@@ -692,12 +692,16 @@ env[HOME]=/
 		}
 		file_put_contents("/etc/php/$version/fpm/pool.d/$key/www.conf", $php);
 	}
-	// remove stale sockets before restarting, then restart each version
+	// restart FPM: first stop all to release sockets, remove stale sockets, then start all
+	foreach(array_replace(PHP_VERSIONS, DISABLED_PHP_VERSIONS) as $php_key => $version){
+		exec('systemctl stop '.escapeshellarg("php$version-fpm@$key").' 2>/dev/null');
+	}
 	foreach($all_accounts as $sa){
 		@unlink("/run/php/$sa");
 	}
+	usleep(200000); // 200ms for sockets to fully release
 	foreach(array_replace(PHP_VERSIONS, DISABLED_PHP_VERSIONS) as $php_key => $version){
-		exec('systemctl restart '.escapeshellarg("php$version-fpm@$key"));
+		exec('systemctl start '.escapeshellarg("php$version-fpm@$key"));
 	}
 }
 
