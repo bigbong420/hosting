@@ -1,16 +1,16 @@
 #!/bin/bash
 set -e
 
-# Tor Hosting - Automated Installer for Debian 13 (Trixie)
-# https://github.com/bigbong420/hosting
+# Tor Hosting - Automated Installer for Debian 13 (Trixie) / Ubuntu 24.04 LTS
+# https://github.com/DanWin/hosting
 #
 # One-liner install:
-#   curl -sSL https://raw.githubusercontent.com/bigbong420/hosting/upgrades/install.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/DanWin/hosting/master/install.sh | bash
 # Or with options:
-#   curl -sSL https://raw.githubusercontent.com/bigbong420/hosting/upgrades/install.sh | bash -s -- --non-interactive
+#   curl -sSL https://raw.githubusercontent.com/DanWin/hosting/master/install.sh | bash -s -- --non-interactive
 
-REPO_URL="https://github.com/bigbong420/hosting.git"
-REPO_BRANCH="upgrades"
+REPO_URL="https://github.com/DanWin/hosting.git"
+REPO_BRANCH="master"
 ORIGINAL_ARGS=("$@")
 
 RED='\033[0;31m'

@@ -2,7 +2,7 @@
 set -e
 
 # Tor Hosting - Update Script
-# https://github.com/bigbong420/hosting
+# https://github.com/DanWin/hosting
 #
 # Updates the hosting platform without rebuilding binaries.
 # For full reinstall including PHP/ImageMagick, use install.sh instead.
@@ -13,8 +13,8 @@ set -e
 #   ./update.sh --php-only       # Only rebuild PHP (skip ImageMagick)
 #   ./update.sh --code-only      # Only update PHP code, no config changes
 
-REPO_URL="https://github.com/bigbong420/hosting.git"
-REPO_BRANCH="upgrades"
+REPO_URL="https://github.com/DanWin/hosting.git"
+REPO_BRANCH="master"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
