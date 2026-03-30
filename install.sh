@@ -315,6 +315,9 @@ log_step "Step 5: Copy site and config files"
 
 cp -a "$SCRIPT_DIR/var/www/"* /var/www/
 cp -a "$SCRIPT_DIR/etc/"* /etc/
+chown root:bind /etc/bind/ -R 2>/dev/null || true
+# Remove Ubuntu module-enabled symlinks that conflict with our nginx.conf
+rm -f /etc/nginx/modules-enabled/mod-http-brotli-*.conf /etc/nginx/modules-enabled/mod-stream.conf 2>/dev/null || true
 
 log_ok "Files copied"
 log_step "Step 6: Create PHP-FPM systemd service files"
